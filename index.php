@@ -328,15 +328,15 @@ $all_users = $user->getAllUsers();
                                 <button type="button" onclick="tambahBarisResep()" class="text-blue-600 bg-blue-50 px-3 py-1 rounded-lg flex items-center gap-1">+ Tambah Bahan</button>
                             </label>
                             <div id="resep-container" class="space-y-3">
-                                <div class="flex gap-3">
+                                <div class="flex gap-3 items-center resep-row">
                                     <select name="id_bahan[]" class="flex-1 p-3 border bg-slate-50 rounded-xl" required>
                                         <option value="">-- Pilih Bahan Baku --</option>
                                         <?php foreach($db_bahan as $b): ?><option value="<?php echo $b['id']; ?>"><?php echo $b['nama']; ?> (<?php echo $b['satuan']; ?>)</option><?php endforeach; ?>
                                     </select>
                                     <input type="number" step="0.1" name="qty_butuh[]" class="w-32 p-3 border bg-slate-50 rounded-xl" placeholder="Butuh Qty" required>
+                                    <div class="w-[50px]"></div>
                                 </div>
                             </div>
-                        </div>
                         <button type="submit" class="w-full bg-blue-600 text-white font-black py-4 rounded-xl shadow-lg">SIMPAN BARANG BARU</button>
                     </form>
                 </div>
@@ -511,15 +511,21 @@ $all_users = $user->getAllUsers();
 
         function tambahBarisResep() {
             const row = document.createElement('div');
-            row.className = 'flex gap-3 mt-2';
+            // Tambahkan class resep-row dan items-center
+            row.className = 'flex gap-3 mt-2 items-center resep-row'; 
             row.innerHTML = `
                 <select name="id_bahan[]" class="flex-1 p-3 border bg-slate-50 rounded-xl" required>
                     <option value="">-- Pilih Bahan Baku --</option>
                     <?php foreach($db_bahan as $b): ?><option value="<?php echo $b['id']; ?>"><?php echo $b['nama']; ?> (<?php echo $b['satuan']; ?>)</option><?php endforeach; ?>
                 </select>
                 <input type="number" step="0.1" name="qty_butuh[]" class="w-32 p-3 border bg-slate-50 rounded-xl" placeholder="Butuh Qty" required>
+                
+                <button type="button" onclick="this.closest('.resep-row').remove()" class="w-[50px] h-[50px] bg-rose-50 text-rose-500 rounded-xl flex items-center justify-center hover:bg-rose-100 transition-colors" title="Hapus Bahan">
+                    <i data-lucide="trash-2" size="20"></i>
+                </button>
             `;
             document.getElementById('resep-container').appendChild(row);
+            lucide.createIcons(); // Render ulang ikon Lucide untuk elemen baru
         }
 
         function kalkulasiKapasitas() {
