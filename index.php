@@ -141,13 +141,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
             $recipe->deleteRecipe($_POST['id_produk']);
             $notif = "Master produk dan resep telah dihapus!";
         }
+
         if ($action == 'proses_produksi') {
             $production->startProduction($_POST['id_produk'], $_POST['qty_produksi'], $recipe, $inventory);
             $notif = "Berhasil memproses " . $_POST['qty_produksi'] . " unit!";
         }
         if ($action == 'barang_keluar') {
             $production->completeProduction($_POST['id_wip']);
-            $notif = "Barang berhasil dikeluarkan!";
+            $notif = "Barang berhasil diselesaikan dan dikeluarkan!";
         }
     } else {
         if ($action != '') {
@@ -161,9 +162,19 @@ $db_bahan = $inventory->getAllMaterials();
 $db_resep = $recipe->getAllRecipesGrouped();
 $products = $recipe->getAllProducts();
 $wip_list = $production->getWIPList();
+$outbound_history = $production->getOutboundList(); 
 $total_wip = $production->getTotalWIP();
 $total_materials = $inventory->getTotalMaterials();
 $all_users = $user->getAllUsers();
+
+// Logic Mengelompokkan Riwayat Barang Keluar Berdasarkan Tanggal
+$history_grouped = [];
+if ($outbound_history) {
+    foreach ($outbound_history as $h) {
+        $date_only = date('Y-m-d', strtotime($h['tanggal']));
+        $history_grouped[$date_only][] = $h;
+    }
+}
 ?>
 
 <!DOCTYPE html>
@@ -177,11 +188,13 @@ $all_users = $user->getAllUsers();
         .tab-content { display: none; }
         .tab-content.active { display: block; }
         .sidebar-item.active { background: #1e293b; color: #38bdf8; border-right: 4px solid #38bdf8; }
+        /* Animasi Transisi Sidebar Halus */
+        aside { transition: margin 0.3s ease-in-out; }
     </style>
 </head>
 <body class="bg-slate-50 flex h-screen overflow-hidden font-sans">
 
-    <aside class="w-72 bg-[#0f172a] text-slate-400 flex flex-col shadow-2xl z-20">
+    <aside id="sidebar" class="w-72 bg-[#0f172a] text-slate-400 flex flex-col shadow-2xl z-20 flex-shrink-0">
         <div class="p-8 border-b border-slate-800">
             <h1 class="text-2xl font-black text-white tracking-tighter flex items-center gap-2">
                 <i data-lucide="factory" class="text-blue-500"></i> PABRIK<span class="text-blue-500">PRO</span>
@@ -199,10 +212,13 @@ $all_users = $user->getAllUsers();
 
         <nav class="flex-1 p-4 space-y-2 overflow-y-auto">
             <button onclick="showTab('dash', this)" class="sidebar-item active w-full flex items-center gap-4 p-4 rounded-xl font-bold transition-all"><i data-lucide="layout-dashboard"></i> Dashboard</button>
+            
             <div class="pt-4 pb-2 text-[10px] font-black uppercase tracking-widest px-4">Gudang & Produksi</div>
             <button onclick="showTab('inventory', this)" class="sidebar-item w-full flex items-center gap-4 p-4 rounded-xl font-bold transition-all"><i data-lucide="package"></i> Data Bahan Baku</button>
             <button onclick="showTab('resep', this)" class="sidebar-item w-full flex items-center gap-4 p-4 rounded-xl font-bold transition-all"><i data-lucide="file-plus"></i> Resep Produk</button>
-            <button onclick="showTab('proses', this)" class="sidebar-item w-full flex items-center gap-4 p-4 rounded-xl font-bold transition-all"><i data-lucide="anvil"></i> Proses & WIP</button>
+            
+            <button onclick="showTab('proses', this)" class="sidebar-item w-full flex items-center gap-4 p-4 rounded-xl font-bold transition-all"><i data-lucide="hammer"></i> Proses Produksi</button>
+            <button onclick="showTab('outbound', this)" class="sidebar-item w-full flex items-center gap-4 p-4 rounded-xl font-bold transition-all"><i data-lucide="truck"></i> Barang Keluar</button>
             
             <?php if($user_role == 'admin'): ?>
             <div class="pt-4 pb-2 text-[10px] font-black uppercase tracking-widest px-4">Sistem</div>
@@ -213,7 +229,12 @@ $all_users = $user->getAllUsers();
 
     <main class="flex-1 flex flex-col min-w-0">
         <header class="h-20 bg-white border-b border-slate-200 flex items-center px-8 justify-between shadow-sm">
-            <h2 id="tab-title" class="text-xl font-black text-slate-800 uppercase tracking-tight">Dashboard</h2>
+            <div class="flex items-center gap-4">
+                <button onclick="toggleSidebar()" class="p-2 bg-slate-100 text-slate-600 rounded-xl hover:bg-slate-200 transition-colors" title="Sembunyikan/Tampilkan Menu">
+                    <i data-lucide="menu"></i>
+                </button>
+                <h2 id="tab-title" class="text-xl font-black text-slate-800 uppercase tracking-tight">Dashboard</h2>
+            </div>
             <div class="text-sm font-bold text-slate-400"><?php echo date('d M Y'); ?></div>
         </header>
 
@@ -246,7 +267,11 @@ $all_users = $user->getAllUsers();
                     <h3 class="font-black text-slate-800 mb-6 flex items-center gap-2"><i data-lucide="bar-chart-2" class="text-blue-500"></i> Proyeksi Kapasitas Produksi</h3>
                     <table class="w-full text-left text-sm">
                         <thead class="bg-slate-50 border-b">
-                            <tr><th class="p-4">Nama Produk</th><th class="p-4">Kebutuhan Resep</th><th class="p-4">Bisa Diproduksi (Max)</th></tr>
+                            <tr>
+                                <th class="p-4">Nama Produk</th>
+                                <th class="p-4">Kebutuhan Resep</th>
+                                <th class="p-4">Bisa Diproduksi (Max)</th>
+                            </tr>
                         </thead>
                         <tbody>
                             <?php foreach($products as $p): 
@@ -327,10 +352,12 @@ $all_users = $user->getAllUsers();
                     <form method="POST" id="form-resep" class="space-y-6">
                         <input type="hidden" name="action" id="resep-action" value="buat_resep_baru">
                         <input type="hidden" name="id_produk" id="resep-id-produk" value="">
+                        
                         <div>
                             <label class="text-xs font-bold text-slate-400 uppercase">Nama Barang</label>
                             <input type="text" name="nama_produk" id="resep-nama-produk" class="w-full p-4 border bg-slate-50 rounded-xl mt-1 font-bold" placeholder="Misal: Lemari Kaca" required>
                         </div>
+                        
                         <div>
                             <label class="text-xs font-bold text-slate-400 uppercase flex justify-between items-end mb-2">
                                 <span>Komponen Bahan Baku (BOM)</span>
@@ -347,6 +374,7 @@ $all_users = $user->getAllUsers();
                                 </div>
                             </div>
                         </div>
+                        
                         <div class="flex gap-4">
                             <button type="submit" id="resep-btn-submit" class="flex-1 bg-blue-600 text-white font-black py-4 rounded-xl shadow-lg">SIMPAN MASTER RESEP</button>
                             <button type="button" onclick="resetResepForm()" class="bg-slate-200 px-6 rounded-xl font-bold"><i data-lucide="rotate-ccw"></i></button>
@@ -354,7 +382,7 @@ $all_users = $user->getAllUsers();
                     </form>
                 </div>
                 <?php else: ?>
-                <div class="bg-amber-50 text-amber-600 p-4 rounded-xl font-bold border border-amber-200">Mode Reviewer: Anda tidak diizinkan menambahkan resep baru.</div>
+                <div class="bg-amber-50 text-amber-600 p-4 rounded-xl font-bold border border-amber-200">Mode Reviewer: Anda tidak diizinkan menambahkan resep baru. Silakan lihat daftar resep di halaman Dashboard.</div>
                 <?php endif; ?>
 
                 <div class="bg-white rounded-2xl border shadow-sm overflow-hidden">
@@ -362,7 +390,8 @@ $all_users = $user->getAllUsers();
                     <table class="w-full text-left text-sm">
                         <thead class="bg-slate-50 border-b">
                             <tr>
-                                <th class="p-4">Nama Produk</th><th class="p-4">Komposisi Bahan</th>
+                                <th class="p-4">Nama Produk</th>
+                                <th class="p-4">Komposisi Bahan</th>
                                 <?php if($user_role != 'reviewer'): ?><th class="p-4 text-right">Aksi</th><?php endif; ?>
                             </tr>
                         </thead>
@@ -397,7 +426,6 @@ $all_users = $user->getAllUsers();
             </div>
 
             <div id="tab-proses" class="tab-content space-y-6">
-                
                 <?php if($user_role != 'reviewer'): ?>
                 <div class="bg-white p-8 rounded-3xl shadow-sm border max-w-2xl">
                     <h3 class="text-lg font-black mb-6 text-amber-500 flex items-center gap-2"><i data-lucide="zap"></i> Eksekusi Produksi Baru</h3>
@@ -437,7 +465,9 @@ $all_users = $user->getAllUsers();
                     <table class="w-full text-left text-sm">
                         <thead class="bg-slate-50 border-b">
                             <tr>
-                                <th class="p-4">Barang di Proses</th><th class="p-4">Qty</th><th class="p-4">Tanggal Mulai</th>
+                                <th class="p-4">Barang di Proses</th>
+                                <th class="p-4">Qty</th>
+                                <th class="p-4">Tanggal Mulai</th>
                                 <?php if($user_role != 'reviewer'): ?><th class="p-4 text-right">Aksi Outbound</th><?php endif; ?>
                             </tr>
                         </thead>
@@ -446,20 +476,75 @@ $all_users = $user->getAllUsers();
                             <tr class="border-b">
                                 <td class="p-4 font-bold text-slate-700"><?php echo $w['nama_produk']; ?></td>
                                 <td class="p-4 font-black"><?php echo $w['qty']; ?></td>
-                                <td class="p-4 text-xs text-slate-400"><?php echo $w['tanggal']; ?></td>
+                                <td class="p-4 text-xs text-slate-400"><?php echo date('d M Y, H:i', strtotime($w['tanggal'])); ?></td>
                                 <?php if($user_role != 'reviewer'): ?>
                                 <td class="p-4 text-right">
                                     <form method="POST">
                                         <input type="hidden" name="action" value="barang_keluar">
                                         <input type="hidden" name="id_wip" value="<?php echo $w['id']; ?>">
-                                        <button class="bg-emerald-500 text-white font-bold px-4 py-2 rounded-lg text-xs hover:bg-emerald-600">SELESAIKAN & KELUARKAN</button>
+                                        <button class="bg-emerald-500 text-white font-bold px-4 py-2 rounded-lg text-xs hover:bg-emerald-600 shadow-md">SELESAIKAN & KELUARKAN</button>
                                     </form>
                                 </td>
                                 <?php endif; ?>
                             </tr>
                             <?php endforeach; ?>
+                            <?php if(empty($wip_list)): ?>
+                            <tr>
+                                <td colspan="4" class="p-10 text-center text-slate-400 font-bold">Belum ada barang yang sedang diproses.</td>
+                            </tr>
+                            <?php endif; ?>
                         </tbody>
                     </table>
+                </div>
+            </div>
+
+            <div id="tab-outbound" class="tab-content space-y-6">
+                <div class="flex justify-between items-center">
+                    <div>
+                        <h3 class="text-2xl font-black text-slate-800">Riwayat Barang Keluar</h3>
+                        <p class="text-slate-400 text-sm">Daftar barang jadi yang telah diselesaikan dan keluar dari proses produksi.</p>
+                    </div>
+                    <a href="export_excel.php" class="bg-emerald-600 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 shadow-lg hover:bg-emerald-700 transition-all">
+                        <i data-lucide="file-spreadsheet"></i> EXPORT EXCEL
+                    </a>
+                </div>
+
+                <div class="space-y-6">
+                    <?php if(empty($history_grouped)): ?>
+                        <div class="bg-white rounded-3xl border shadow-sm p-20 text-center text-slate-300 font-bold">
+                            Belum ada riwayat barang keluar.
+                        </div>
+                    <?php else: ?>
+                        
+                        <?php foreach($history_grouped as $date => $items): ?>
+                        <div class="bg-white rounded-2xl border shadow-sm overflow-hidden">
+                            <div class="bg-slate-100 px-6 py-4 border-b font-black text-slate-700 flex items-center gap-2">
+                                <i data-lucide="calendar" class="text-emerald-600"></i>
+                                <?php echo date('d F Y', strtotime($date)); ?>
+                            </div>
+                            
+                            <table class="w-full text-left text-sm">
+                                <thead class="bg-slate-50 border-b">
+                                    <tr>
+                                        <th class="p-4 w-1/4">Waktu Penyelesaian</th>
+                                        <th class="p-4 w-1/2">Nama Barang</th>
+                                        <th class="p-4 w-1/4">Jumlah (Qty)</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php foreach($items as $h): ?>
+                                    <tr class="border-b hover:bg-slate-50 transition-colors">
+                                        <td class="p-4 text-slate-500 font-medium"><?php echo date('H:i', strtotime($h['tanggal'])); ?> WIB</td>
+                                        <td class="p-4 font-black text-slate-700"><?php echo strtoupper($h['nama_barang']); ?></td>
+                                        <td class="p-4 font-black text-emerald-600"><?php echo $h['qty']; ?> <span class="text-[10px] text-slate-400 uppercase tracking-widest ml-1">Unit</span></td>
+                                    </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                        <?php endforeach; ?>
+
+                    <?php endif; ?>
                 </div>
             </div>
 
@@ -470,14 +555,17 @@ $all_users = $user->getAllUsers();
                     <form method="POST" id="form-user" class="flex gap-4 items-end">
                         <input type="hidden" name="action" id="user-action" value="tambah_user">
                         <input type="hidden" name="id_user" id="user-id" value="">
+                        
                         <div class="flex-1">
                             <label class="text-xs font-bold text-slate-400 uppercase">Username</label>
                             <input type="text" name="username" id="user-username" class="w-full p-3 border rounded-xl bg-slate-50 mt-1" required>
                         </div>
+                        
                         <div class="flex-1">
                             <label class="text-xs font-bold text-slate-400 uppercase">Password</label>
                             <input type="password" name="password" id="user-password" class="w-full p-3 border rounded-xl bg-slate-50 mt-1" required>
                         </div>
+                        
                         <div class="w-40">
                             <label class="text-xs font-bold text-slate-400 uppercase">Role</label>
                             <select name="role" id="user-role" class="w-full p-3 border rounded-xl bg-slate-50 mt-1" required>
@@ -486,6 +574,7 @@ $all_users = $user->getAllUsers();
                                 <option value="admin">Admin</option>
                             </select>
                         </div>
+                        
                         <button type="submit" id="user-btn" class="bg-blue-600 text-white px-6 py-3 rounded-xl font-bold h-[50px]">Simpan</button>
                         <button type="button" onclick="resetUserForm()" class="bg-slate-200 px-4 rounded-xl h-[50px]"><i data-lucide="x"></i></button>
                     </form>
@@ -493,7 +582,13 @@ $all_users = $user->getAllUsers();
 
                 <div class="bg-white rounded-2xl border shadow-sm overflow-hidden">
                     <table class="w-full text-left text-sm">
-                        <thead class="bg-slate-50 border-b"><tr><th class="p-4">Username</th><th class="p-4">Role</th><th class="p-4 text-right">Aksi</th></tr></thead>
+                        <thead class="bg-slate-50 border-b">
+                            <tr>
+                                <th class="p-4">Username</th>
+                                <th class="p-4">Role</th>
+                                <th class="p-4 text-right">Aksi</th>
+                            </tr>
+                        </thead>
                         <tbody>
                             <?php foreach($all_users as $u): ?>
                             <tr class="border-b">
@@ -531,6 +626,13 @@ $all_users = $user->getAllUsers();
     <script>
         const dbResep = <?php echo json_encode($db_resep); ?>;
         
+        // FUNGSI UNTUK TOGGLE SIDEBAR (HIDE/SHOW)
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            // Menambahkan margin negatif yang sama dengan lebar sidebar (w-72 = 18rem = 288px)
+            sidebar.classList.toggle('-ml-72');
+        }
+
         function showTab(id, btn) {
             document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
             document.getElementById('tab-' + id).classList.add('active');

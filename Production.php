@@ -26,6 +26,8 @@ class Production {
     }
 
     public function startProduction($id_produk, $qty_produksi, $recipe, $inventory) {
+        $id_produk = (int)$id_produk;
+        $qty_produksi = (int)$qty_produksi;
         $recipes = $recipe->getRecipesByProduct($id_produk);
         
         // Kurangi stok bahan baku
@@ -34,27 +36,37 @@ class Production {
             $inventory->reduceMaterialStock($r['id_bahan'], $total_potong);
         }
 
-        // Tambah ke WIP
-        $nama_p = $this->db->query("SELECT nama_produk FROM master_produk WHERE id=$id_produk");
-        $prod_name = $this->db->fetch_assoc($nama_p)['nama_produk'];
-        $nama_p = $this->db->escape($prod_name);
+        // Tambah ke WIP (Dengan pengecekan mencegah Null)
+        $query_p = $this->db->query("SELECT nama_produk FROM master_produk WHERE id=$id_produk");
+        $data_p = $this->db->fetch_assoc($query_p);
         
-        $sql = "INSERT INTO produksi_wip (nama_produk, qty) VALUES ('$nama_p', $qty_produksi)";
-        return $this->db->query($sql);
+        if ($data_p) {
+            $nama_p = $this->db->escape($data_p['nama_produk']);
+            $sql = "INSERT INTO produksi_wip (nama_produk, qty) VALUES ('$nama_p', $qty_produksi)";
+            return $this->db->query($sql);
+        }
+        return false;
     }
 
     public function completeProduction($id_wip) {
+        $id_wip = (int)$id_wip;
         $wip_data = $this->db->query("SELECT * FROM produksi_wip WHERE id = $id_wip");
         $data = $this->db->fetch_assoc($wip_data);
         
-        $nama_barang = $this->db->escape($data['nama_produk']);
-        $qty = $data['qty'];
+        // CEK APAKAH DATA DITEMUKAN (Mencegah error jika ter-submit 2 kali)
+        if ($data) {
+            $nama_barang = $this->db->escape($data['nama_produk']);
+            $qty = (int)$data['qty'];
+            
+            $sql1 = "INSERT INTO barang_keluar (nama_barang, qty) VALUES ('$nama_barang', $qty)";
+            $sql2 = "DELETE FROM produksi_wip WHERE id = $id_wip";
+            
+            $this->db->query($sql1);
+            return $this->db->query($sql2);
+        }
         
-        $sql1 = "INSERT INTO barang_keluar (nama_barang, qty) VALUES ('$nama_barang', $qty)";
-        $sql2 = "DELETE FROM produksi_wip WHERE id = $id_wip";
-        
-        $this->db->query($sql1);
-        return $this->db->query($sql2);
+        // Kembalikan false jika data WIP sudah tidak ada/terhapus
+        return false;
     }
 
     public function getWIPList() {
@@ -69,7 +81,7 @@ class Production {
     }
 
     public function getOutboundList() {
-        $query = $this->db->query("SELECT * FROM barang_keluar");
+        $query = $this->db->query("SELECT * FROM barang_keluar ORDER BY tanggal DESC");
         return $this->db->fetch_all($query);
     }
 }
