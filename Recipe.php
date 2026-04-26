@@ -89,5 +89,26 @@ class Recipe {
         // Hapus master produknya
         return $this->db->query("DELETE FROM master_produk WHERE id = $id_produk");
     }
+    // Tambahkan method ini di dalam class Recipe di Recipe.php
+    public function updateRecipe($id_produk, $nama_produk, $bahan_list, $qty_list) {
+        $id_produk = (int)$id_produk;
+        $nama_produk = $this->db->escape($nama_produk);
+        
+        // 1. Update nama produk di master_produk
+        $this->db->query("UPDATE master_produk SET nama_produk = '$nama_produk' WHERE id = $id_produk");
+        
+        // 2. Hapus detail resep lama
+        $this->db->query("DELETE FROM resep WHERE id_produk = $id_produk");
+        
+        // 3. Masukkan detail resep yang baru diperbarui
+        for ($i = 0; $i < count($bahan_list); $i++) {
+            if (!empty($bahan_list[$i]) && !empty($qty_list[$i])) {
+                $sql_resep = "INSERT INTO resep (id_produk, id_bahan, qty_butuh) 
+                              VALUES ($id_produk, {$bahan_list[$i]}, {$qty_list[$i]})";
+                $this->db->query($sql_resep);
+            }
+        }
+        return true;
+    }
 }
 ?>

@@ -133,6 +133,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
             $recipe->createRecipe($_POST['nama_produk'], $_POST['id_bahan'], $_POST['qty_butuh']);
             $notif = "Produk dan Resep baru berhasil disimpan!";
         }
+        if ($action == 'edit_resep') {
+            $recipe->updateRecipe($_POST['id_produk'], $_POST['nama_produk'], $_POST['id_bahan'], $_POST['qty_butuh']);
+            $notif = "Master resep berhasil diperbarui!";
+        }
+        if ($action == 'hapus_resep') {
+            $recipe->deleteRecipe($_POST['id_produk']);
+            $notif = "Master produk dan resep telah dihapus!";
+        }
         if ($action == 'proses_produksi') {
             $production->startProduction($_POST['id_produk'], $_POST['qty_produksi'], $recipe, $inventory);
             $notif = "Berhasil memproses " . $_POST['qty_produksi'] . " unit!";
@@ -312,15 +320,16 @@ $all_users = $user->getAllUsers();
                 </div>
             </div>
 
-            <div id="tab-resep" class="tab-content">
+            <div id="tab-resep" class="tab-content space-y-8">
                 <?php if($user_role != 'reviewer'): ?>
                 <div class="bg-white p-8 rounded-3xl shadow-sm border max-w-2xl">
-                    <h3 class="text-lg font-black mb-6">Buat Master Barang & Resep Baru</h3>
-                    <form method="POST" class="space-y-6">
-                        <input type="hidden" name="action" value="buat_resep_baru">
+                    <h3 id="form-resep-title" class="text-lg font-black mb-6">Buat Master Barang & Resep Baru</h3>
+                    <form method="POST" id="form-resep" class="space-y-6">
+                        <input type="hidden" name="action" id="resep-action" value="buat_resep_baru">
+                        <input type="hidden" name="id_produk" id="resep-id-produk" value="">
                         <div>
-                            <label class="text-xs font-bold text-slate-400 uppercase">Nama Barang Baru</label>
-                            <input type="text" name="nama_produk" class="w-full p-4 border bg-slate-50 rounded-xl mt-1 font-bold" placeholder="Misal: Lemari Kaca" required>
+                            <label class="text-xs font-bold text-slate-400 uppercase">Nama Barang</label>
+                            <input type="text" name="nama_produk" id="resep-nama-produk" class="w-full p-4 border bg-slate-50 rounded-xl mt-1 font-bold" placeholder="Misal: Lemari Kaca" required>
                         </div>
                         <div>
                             <label class="text-xs font-bold text-slate-400 uppercase flex justify-between items-end mb-2">
@@ -337,12 +346,54 @@ $all_users = $user->getAllUsers();
                                     <div class="w-[50px]"></div>
                                 </div>
                             </div>
-                        <button type="submit" class="w-full bg-blue-600 text-white font-black py-4 rounded-xl shadow-lg">SIMPAN BARANG BARU</button>
+                        </div>
+                        <div class="flex gap-4">
+                            <button type="submit" id="resep-btn-submit" class="flex-1 bg-blue-600 text-white font-black py-4 rounded-xl shadow-lg">SIMPAN MASTER RESEP</button>
+                            <button type="button" onclick="resetResepForm()" class="bg-slate-200 px-6 rounded-xl font-bold"><i data-lucide="rotate-ccw"></i></button>
+                        </div>
                     </form>
                 </div>
                 <?php else: ?>
-                <div class="bg-amber-50 text-amber-600 p-4 rounded-xl font-bold border border-amber-200">Mode Reviewer: Anda tidak diizinkan menambahkan resep baru. Silakan lihat daftar resep di halaman Dashboard.</div>
+                <div class="bg-amber-50 text-amber-600 p-4 rounded-xl font-bold border border-amber-200">Mode Reviewer: Anda tidak diizinkan menambahkan resep baru.</div>
                 <?php endif; ?>
+
+                <div class="bg-white rounded-2xl border shadow-sm overflow-hidden">
+                    <div class="p-4 bg-slate-50 border-b font-bold text-slate-700">Daftar Master Produk & BOM</div>
+                    <table class="w-full text-left text-sm">
+                        <thead class="bg-slate-50 border-b">
+                            <tr>
+                                <th class="p-4">Nama Produk</th><th class="p-4">Komposisi Bahan</th>
+                                <?php if($user_role != 'reviewer'): ?><th class="p-4 text-right">Aksi</th><?php endif; ?>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach($products as $p): 
+                                $id_p = $p['id'];
+                                $komposisi = [];
+                                if(isset($db_resep[$id_p])) {
+                                    foreach($db_resep[$id_p] as $r) {
+                                        $komposisi[] = "<span class='bg-slate-100 px-2 py-1 rounded text-[11px]'>{$r['nama_bahan']} ({$r['qty_butuh']})</span>";
+                                    }
+                                }
+                            ?>
+                            <tr class="border-b">
+                                <td class="p-4 font-bold text-slate-700"><?php echo $p['nama_produk']; ?></td>
+                                <td class="p-4 flex flex-wrap gap-2"><?php echo implode("", $komposisi); ?></td>
+                                <?php if($user_role != 'reviewer'): ?>
+                                <td class="p-4 text-right flex justify-end gap-2">
+                                    <button onclick="editResep(<?php echo $id_p; ?>, '<?php echo $p['nama_produk']; ?>')" class="text-blue-500 bg-blue-50 p-2 rounded-lg"><i data-lucide="edit" size="16"></i></button>
+                                    <form method="POST" onsubmit="return confirm('Hapus master produk dan resep ini?');">
+                                        <input type="hidden" name="action" value="hapus_resep">
+                                        <input type="hidden" name="id_produk" value="<?php echo $id_p; ?>">
+                                        <button type="submit" class="text-rose-500 bg-rose-50 p-2 rounded-lg"><i data-lucide="trash-2" size="16"></i></button>
+                                    </form>
+                                </td>
+                                <?php endif; ?>
+                            </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
             </div>
 
             <div id="tab-proses" class="tab-content space-y-6">
@@ -509,9 +560,8 @@ $all_users = $user->getAllUsers();
             document.getElementById('bahan-btn').classList.replace('bg-amber-500', 'bg-slate-900');
         }
 
-        function tambahBarisResep() {
+        function tambahBarisResep(idBahan = '', qty = '') {
             const row = document.createElement('div');
-            // Tambahkan class resep-row dan items-center
             row.className = 'flex gap-3 mt-2 items-center resep-row'; 
             row.innerHTML = `
                 <select name="id_bahan[]" class="flex-1 p-3 border bg-slate-50 rounded-xl" required>
@@ -519,13 +569,60 @@ $all_users = $user->getAllUsers();
                     <?php foreach($db_bahan as $b): ?><option value="<?php echo $b['id']; ?>"><?php echo $b['nama']; ?> (<?php echo $b['satuan']; ?>)</option><?php endforeach; ?>
                 </select>
                 <input type="number" step="0.1" name="qty_butuh[]" class="w-32 p-3 border bg-slate-50 rounded-xl" placeholder="Butuh Qty" required>
-                
-                <button type="button" onclick="this.closest('.resep-row').remove()" class="w-[50px] h-[50px] bg-rose-50 text-rose-500 rounded-xl flex items-center justify-center hover:bg-rose-100 transition-colors" title="Hapus Bahan">
+                <button type="button" onclick="this.closest('.resep-row').remove()" class="w-[50px] h-[50px] bg-rose-50 text-rose-500 rounded-xl flex items-center justify-center hover:bg-rose-100 transition-colors">
                     <i data-lucide="trash-2" size="20"></i>
                 </button>
             `;
-            document.getElementById('resep-container').appendChild(row);
-            lucide.createIcons(); // Render ulang ikon Lucide untuk elemen baru
+            const container = document.getElementById('resep-container');
+            container.appendChild(row);
+            
+            if(idBahan) row.querySelector('select').value = idBahan;
+            if(qty) row.querySelector('input').value = qty;
+
+            lucide.createIcons();
+        }
+
+        function editResep(id, nama) {
+            resetResepForm();
+            document.getElementById('form-resep-title').innerText = "Edit Master Produk & Resep";
+            document.getElementById('resep-action').value = "edit_resep";
+            document.getElementById('resep-id-produk').value = id;
+            document.getElementById('resep-nama-produk').value = nama;
+            document.getElementById('resep-btn-submit').innerText = "UPDATE MASTER RESEP";
+            document.getElementById('resep-btn-submit').classList.replace('bg-blue-600', 'bg-amber-500');
+
+            // Kosongkan container default
+            document.getElementById('resep-container').innerHTML = '';
+            
+            // Isi dengan data BOM dari dbResep
+            if(dbResep[id]) {
+                dbResep[id].forEach(item => {
+                    tambahBarisResep(item.id_bahan, item.qty_butuh);
+                });
+            }
+        }
+
+        function resetResepForm() {
+            document.getElementById('form-resep').reset();
+            document.getElementById('form-resep-title').innerText = "Buat Master Barang & Resep Baru";
+            document.getElementById('resep-action').value = "buat_resep_baru";
+            document.getElementById('resep-id-produk').value = "";
+            document.getElementById('resep-btn-submit').innerText = "SIMPAN MASTER RESEP";
+            document.getElementById('resep-btn-submit').classList.replace('bg-amber-500', 'bg-blue-600');
+            
+            // Kembalikan ke satu baris kosong default
+            const container = document.getElementById('resep-container');
+            container.innerHTML = `
+                <div class="flex gap-3 items-center resep-row">
+                    <select name="id_bahan[]" class="flex-1 p-3 border bg-slate-50 rounded-xl" required>
+                        <option value="">-- Pilih Bahan Baku --</option>
+                        <?php foreach($db_bahan as $b): ?><option value="<?php echo $b['id']; ?>"><?php echo $b['nama']; ?> (<?php echo $b['satuan']; ?>)</option><?php endforeach; ?>
+                    </select>
+                    <input type="number" step="0.1" name="qty_butuh[]" class="w-32 p-3 border bg-slate-50 rounded-xl" placeholder="Butuh Qty" required>
+                    <div class="w-[50px]"></div>
+                </div>
+            `;
+            lucide.createIcons();
         }
 
         function kalkulasiKapasitas() {
