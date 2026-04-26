@@ -49,6 +49,21 @@ class User {
         $sql = "INSERT INTO users (username, password, role) VALUES ('$username', '$password_hash', '$role')";
         return $this->db->query($sql);
     }
+    public function editUser($id, $username, $password, $role) {
+        $id = (int)$id;
+        $username = $this->db->escape($username);
+        $role = $this->db->escape($role);
+
+        // Jika password diisi, update passwordnya juga. Jika kosong, biarkan yang lama.
+        if (!empty($password)) {
+            $password_hash = password_hash($password, PASSWORD_DEFAULT);
+            $sql = "UPDATE users SET username='$username', password='$password_hash', role='$role' WHERE id=$id";
+        } else {
+            $sql = "UPDATE users SET username='$username', role='$role' WHERE id=$id";
+        }
+        
+        return $this->db->query($sql);
+    }
 
     public function deleteUser($id) {
         if ($id != $_SESSION['user_id']) {

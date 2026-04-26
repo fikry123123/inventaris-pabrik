@@ -103,12 +103,16 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
                 $notif = "User baru berhasil ditambahkan!";
             }
         }
+        if ($action == 'edit_user') {
+            if ($user->editUser($_POST['id_user'], $_POST['username'], $_POST['password'], $_POST['role'])) {
+                $notif = "Data user berhasil diperbarui!";
+            }
+        }
         if ($action == 'hapus_user') {
             if ($user->deleteUser($_POST['id_user'])) {
                 $notif = "User berhasil dihapus!";
             }
         }
-        
     }
 
     if ($user_role == 'admin' || $user_role == 'editor') {
@@ -411,26 +415,28 @@ $all_users = $user->getAllUsers();
             <?php if($user_role == 'admin'): ?>
             <div id="tab-users" class="tab-content space-y-6">
                 <div class="bg-white p-6 rounded-2xl border shadow-sm max-w-3xl">
-                    <h3 class="font-bold mb-4">Tambah Akses User Baru</h3>
-                    <form method="POST" class="flex gap-4 items-end">
-                        <input type="hidden" name="action" value="tambah_user">
+                    <h3 id="form-user-title" class="font-bold mb-4">Tambah Akses User Baru</h3>
+                    <form method="POST" id="form-user" class="flex gap-4 items-end">
+                        <input type="hidden" name="action" id="user-action" value="tambah_user">
+                        <input type="hidden" name="id_user" id="user-id" value="">
                         <div class="flex-1">
                             <label class="text-xs font-bold text-slate-400 uppercase">Username</label>
-                            <input type="text" name="username" class="w-full p-3 border rounded-xl bg-slate-50 mt-1" required>
+                            <input type="text" name="username" id="user-username" class="w-full p-3 border rounded-xl bg-slate-50 mt-1" required>
                         </div>
                         <div class="flex-1">
                             <label class="text-xs font-bold text-slate-400 uppercase">Password</label>
-                            <input type="password" name="password" class="w-full p-3 border rounded-xl bg-slate-50 mt-1" required>
+                            <input type="password" name="password" id="user-password" class="w-full p-3 border rounded-xl bg-slate-50 mt-1" required>
                         </div>
                         <div class="w-40">
                             <label class="text-xs font-bold text-slate-400 uppercase">Role</label>
-                            <select name="role" class="w-full p-3 border rounded-xl bg-slate-50 mt-1" required>
+                            <select name="role" id="user-role" class="w-full p-3 border rounded-xl bg-slate-50 mt-1" required>
                                 <option value="editor">Editor</option>
                                 <option value="reviewer">Reviewer</option>
                                 <option value="admin">Admin</option>
                             </select>
                         </div>
-                        <button type="submit" class="bg-blue-600 text-white px-6 py-3 rounded-xl font-bold h-[50px]">Simpan</button>
+                        <button type="submit" id="user-btn" class="bg-blue-600 text-white px-6 py-3 rounded-xl font-bold h-[50px]">Simpan</button>
+                        <button type="button" onclick="resetUserForm()" class="bg-slate-200 px-4 rounded-xl h-[50px]"><i data-lucide="x"></i></button>
                     </form>
                 </div>
 
@@ -447,7 +453,9 @@ $all_users = $user->getAllUsers();
                                         <?php echo $u['role']; ?>
                                     </span>
                                 </td>
-                                <td class="p-4 text-right">
+                                <td class="p-4 text-right flex justify-end gap-2">
+                                    <button onclick="editUser(<?php echo $u['id']; ?>, '<?php echo $u['username']; ?>', '<?php echo $u['role']; ?>')" class="text-blue-500 bg-blue-50 p-2 rounded-lg"><i data-lucide="edit" size="16"></i></button>
+                                    
                                     <?php if($u['id'] != $_SESSION['user_id']): ?>
                                     <form method="POST" onsubmit="return confirm('Hapus akses user ini?');">
                                         <input type="hidden" name="action" value="hapus_user">
@@ -455,7 +463,7 @@ $all_users = $user->getAllUsers();
                                         <button type="submit" class="text-rose-500 bg-rose-50 p-2 rounded-lg"><i data-lucide="trash-2" size="16"></i></button>
                                     </form>
                                     <?php else: ?>
-                                    <span class="text-xs text-slate-400 font-bold">Anda Sendiri</span>
+                                    <div class="bg-slate-100 px-3 py-2 rounded-lg"><span class="text-xs text-slate-400 font-bold">Anda Sendiri</span></div>
                                     <?php endif; ?>
                                 </td>
                             </tr>
@@ -553,6 +561,42 @@ $all_users = $user->getAllUsers();
                 inputQty.disabled = true;
                 btnProses.disabled = true; btnProses.classList.add('opacity-50', 'cursor-not-allowed');
             }
+        }
+        <?php endif; ?>
+
+        // Script Form User (Khusus Admin)
+        <?php if($user_role == 'admin'): ?>
+        function editUser(id, username, role) {
+            document.getElementById('form-user-title').innerText = "Edit Akses User";
+            document.getElementById('user-action').value = "edit_user";
+            document.getElementById('user-id').value = id;
+            document.getElementById('user-username').value = username;
+            document.getElementById('user-role').value = role;
+            
+            // Password tidak wajib saat edit
+            const passInput = document.getElementById('user-password');
+            passInput.required = false;
+            passInput.placeholder = "Kosongkan jika tidak diubah";
+            
+            const btn = document.getElementById('user-btn');
+            btn.innerText = "Update";
+            btn.classList.replace('bg-blue-600', 'bg-amber-500');
+        }
+
+        function resetUserForm() {
+            document.getElementById('form-user').reset();
+            document.getElementById('form-user-title').innerText = "Tambah Akses User Baru";
+            document.getElementById('user-action').value = "tambah_user";
+            document.getElementById('user-id').value = "";
+            
+            // Kembalikan wajib isi untuk password saat mode tambah baru
+            const passInput = document.getElementById('user-password');
+            passInput.required = true;
+            passInput.placeholder = "";
+            
+            const btn = document.getElementById('user-btn');
+            btn.innerText = "Simpan";
+            btn.classList.replace('bg-amber-500', 'bg-blue-600');
         }
         <?php endif; ?>
 
