@@ -1,7 +1,7 @@
 <?php
 class Database {
     private $conn;
-    private $host = "https://acela.proxy.rlwy.net/";
+    private $host = "acela.proxy.rlwy.net/";
     private $user = "root";
     private $password = "EXdeVuaCoVntmAstxBrjJdtKNPPNhTKp";
     private $database = "railway";
