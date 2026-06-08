@@ -12,7 +12,7 @@ class Database {
     }
 
     public function connect() {
-        $this->conn = mysqli_connect($this->host, $this->user, $this->password, $this->database);
+        $this->conn = mysqli_connect($this->host, $this->user, $this->password, $this->database, $this->port);
         
         if (!$this->conn) {
             die("Connection Failed: " . mysqli_connect_error());
