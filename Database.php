@@ -1,10 +1,10 @@
 <?php
 class Database {
     private $conn;
-    private $host = "localhost";
+    private $host = "mysql.railway.internal";
     private $user = "root";
-    private $password = "";
-    private $database = "db_pabrik";
+    private $password = "EXdeVuaCoVntmAstxBrjJdtKNPPNhTKp";
+    private $database = "railway";
 
     public function __construct() {
         $this->connect();
