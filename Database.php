@@ -5,6 +5,7 @@ class Database {
     private $user = "root";
     private $password = "EXdeVuaCoVntmAstxBrjJdtKNPPNhTKp";
     private $database = "railway";
+    private $port = 26702;
 
     public function __construct() {
         $this->connect();
